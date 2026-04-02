@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  ADMIN
+  VENDEDOR
+}
+
+enum Tamanho {
+  PP
+  P
+  M
+  G
+  GG
+  XGG
+  UNICO
+}
+
+enum Categoria {
+  CAMISETA
+  CAMISA
+  CALCA
+  BERMUDA
+  VESTIDO
+  SAIA
+  JAQUETA
+  CASACO
+  MOLETOM
+  CONJUNTO
+  ACESSORIO
+  OUTRO
+}
+
+enum MetodoPagamento {
+  PIX
+  CARTAO_CREDITO
+  CARTAO_DEBITO
+  DINHEIRO
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(VENDEDOR)
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  vendas    Venda[]
+
+  @@map("users")
+}
+
+model Produto {
+  id            String    @id @default(cuid())
+  nome          String
+  categoria     Categoria
+  tamanho       Tamanho
+  cor           String
+  precoCusto    Decimal   @db.Decimal(10, 2)
+  precoVenda    Decimal   @db.Decimal(10, 2)
+  quantidade    Int       @default(0)
+  ativo         Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  itensVenda    ItemVenda[]
+
+  @@map("produtos")
+}
+
+model Venda {
+  id             String          @id @default(cuid())
+  vendedorId     String
+  vendedor       User            @relation(fields: [vendedorId], references: [id])
+  total          Decimal         @db.Decimal(10, 2)
+  metodoPagamento MetodoPagamento
+  observacao     String?
+  createdAt      DateTime        @default(now())
+  itens          ItemVenda[]
+
+  @@map("vendas")
+}
+
+model ItemVenda {
+  id         String  @id @default(cuid())
+  vendaId    String
+  venda      Venda   @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+  produtoId  String
+  produto    Produto @relation(fields: [produtoId], references: [id])
+  quantidade Int
+  precoUnit  Decimal @db.Decimal(10, 2)
+  subtotal   Decimal @db.Decimal(10, 2)
+
+  @@map("itens_venda")
+}
