@@ -1,66 +1,57 @@
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { NextResponse } from "next/server";
 
-export async function POST(request: Request) {
+export async function GET(request: Request) {
   try {
-    const body = await request.json();
-    const { produtoId, quantidade, valorTotal, vendedorId, metodoPagamento } =
-      body;
+    // 1. Pegamos as datas que vêm da URL (?inicio=YYYY-MM-DD&fim=YYYY-MM-DD)
+    const { searchParams } = new URL(request.url);
+    const inicio = searchParams.get("inicio");
+    const fim = searchParams.get("fim");
 
-    // Verificação de segurança: Venda precisa de um dono
-    if (!vendedorId) {
-      return NextResponse.json(
-        { error: "ID do vendedor é obrigatório" },
-        { status: 400 },
-      );
+    // 2. Montamos o filtro dinâmico
+    let where: any = {};
+
+    if (inicio && fim) {
+      where.createdAt = {
+        gte: new Date(`${inicio}T00:00:00.000Z`), // Início do dia
+        lte: new Date(`${fim}T23:59:59.999Z`), // Fim do dia
+      };
     }
 
-    const resultado = await prisma.$transaction(async (tx) => {
-      // 1. Cria o registro da venda com o método de pagamento
-      const venda = await tx.venda.create({
-        data: {
-          produtoId,
-          vendedorId,
-          quantidade: Number(quantidade),
-          valorTotal: Number(valorTotal),
-          metodoPagamento: metodoPagamento || "PIX", // Valor padrão caso venha vazio
-        },
-      });
-
-      // 2. Atualiza o estoque automaticamente
-      await tx.produto.update({
-        where: { id: produtoId },
-        data: {
-          quantidade: { decrement: Number(quantidade) },
-        },
-      });
-
-      return venda;
-    });
-
-    return NextResponse.json(resultado, { status: 201 });
-  } catch (error) {
-    console.error("Erro na venda:", error);
-    return NextResponse.json(
-      { error: "Erro ao processar venda no banco de dados" },
-      { status: 500 },
-    );
-  }
-}
-
-export async function GET() {
-  try {
+    // 3. Buscamos as vendas com o filtro
     const vendas = await prisma.venda.findMany({
+      where,
       include: {
         produto: true,
         vendedor: true,
       },
       orderBy: { createdAt: "desc" },
     });
-    return NextResponse.json(vendas);
+
+    // 4. Calculamos as estatísticas que o seu frontend espera
+    // Isso evita que o frontend tenha que fazer conta pesada
+    const stats = vendas.reduce(
+      (acc, venda) => {
+        const totalVenda = Number(venda.valorTotal);
+        const custoTotal = Number(venda.produto.precoCusto) * venda.quantidade;
+
+        return {
+          faturamentoTotal: acc.faturamentoTotal + totalVenda,
+          lucroTotal: acc.lucroTotal + (totalVenda - custoTotal),
+        };
+      },
+      { faturamentoTotal: 0, lucroTotal: 0 },
+    );
+
+    // 5. Retornamos o objeto completo
+    return NextResponse.json({
+      vendas,
+      stats,
+    });
   } catch (error) {
+    console.error("Erro no relatório:", error);
     return NextResponse.json(
-      { error: "Erro ao buscar histórico de vendas" },
+      { error: "Erro ao buscar dados" },
       { status: 500 },
     );
   }
