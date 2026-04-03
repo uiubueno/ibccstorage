@@ -1,387 +1,278 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Package } from "lucide-react";
-
-interface Produto {
-  id: string;
-  nome: string;
-  categoria: string;
-  tamanho: string;
-  cor: string;
-  precoCusto: number;
-  precoVenda: number;
-  quantidade: number;
-}
-
-const categorias = [
-  "CAMISETA",
-  "CALCA",
-  "VESTIDO",
-  "SAIA",
-  "JAQUETA",
-  "MOLETOM",
-  "SHORTS",
-  "OUTRO",
-];
-const tamanhos = ["PP", "P", "M", "G", "GG", "XGG", "UNICO"];
-const emptyForm = {
-  nome: "",
-  categoria: "CAMISETA",
-  tamanho: "M",
-  cor: "",
-  precoCusto: "",
-  precoVenda: "",
-  quantidade: "",
-};
+  Beer,
+  AlertTriangle,
+  List,
+  Plus,
+  Search,
+  Edit2,
+  X,
+  Check,
+} from "lucide-react";
 
 export default function EstoquePage() {
-  const { data: session } = useSession();
-  const [produtos, setProdutos] = useState<Produto[]>([]);
-  const [form, setForm] = useState(emptyForm);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const filtroAtivo = searchParams.get("filtro") || "todos";
 
-  const isAdmin = (session?.user as any)?.role === "ADMIN";
+  const [produtos, setProdutos] = useState<any[]>([]);
+  const [busca, setBusca] = useState(""); // Estado para a barra de busca
+  const [loading, setLoading] = useState(true);
 
-  const formatBRL = (v: number) =>
-    new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(v || 0);
+  // Estado para o Modal de Edição
+  const [produtoEditando, setProdutoEditando] = useState<any>(null);
 
-  async function fetchProdutos() {
-    try {
-      const res = await fetch("/api/produtos");
-      const data = await res.json();
-      setProdutos(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Erro ao buscar produtos:", error);
-      setProdutos([]);
-    }
-  }
+  const carregarProdutos = () => {
+    fetch("/api/produtos")
+      .then((res) => res.json())
+      .then((data) => {
+        setProdutos(data);
+        setLoading(false);
+      });
+  };
 
   useEffect(() => {
-    fetchProdutos();
+    carregarProdutos();
   }, []);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
+  // Lógica de Filtragem (Categoria + Busca por Nome)
+  const produtosFiltrados = produtos.filter((p) => {
+    const bateBusca = p.nome.toLowerCase().includes(busca.toLowerCase());
+    const bateFiltro = filtroAtivo === "baixo" ? p.quantidade <= 5 : true;
+    return bateBusca && bateFiltro;
+  });
 
-    const payload = {
-      ...form,
-      precoCusto: Number(form.precoCusto) || 0,
-      precoVenda: Number(form.precoVenda) || 0,
-      quantidade: Number(form.quantidade) || 0,
-    };
-
-    const url = editId ? `/api/produtos/${editId}` : "/api/produtos";
-    const method = editId ? "PUT" : "POST";
-
-    try {
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        alert(
-          editId
-            ? "Produto atualizado com sucesso!"
-            : "Produto cadastrado com sucesso!",
-        );
-        fetchProdutos();
-        setOpen(false);
-        setForm(emptyForm);
-        setEditId(null);
-      } else {
-        alert("Erro ao salvar produto no banco de dados.");
-      }
-    } catch (error) {
-      alert("Erro de comunicação com o servidor.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleDelete(id: string) {
-    if (!confirm("Deseja remover este produto definitivamente?")) return;
-
-    try {
-      const res = await fetch(`/api/produtos/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        alert("Produto removido do estoque.");
-        fetchProdutos();
-      } else {
-        alert("Erro ao remover o produto.");
-      }
-    } catch (error) {
-      alert("Erro de comunicação com o servidor.");
-    }
-  }
-
-  function openEdit(p: Produto) {
-    setForm({
-      nome: p.nome,
-      categoria: p.categoria,
-      tamanho: p.tamanho,
-      cor: p.cor,
-      precoCusto: String(p.precoCusto),
-      precoVenda: String(p.precoVenda),
-      quantidade: String(p.quantidade),
+  // Função para salvar a edição
+  async function confirmarEdicao() {
+    const res = await fetch("/api/produtos", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(produtoEditando),
     });
-    setEditId(p.id);
-    setOpen(true);
+
+    if (res.ok) {
+      setProdutoEditando(null);
+      carregarProdutos();
+    } else {
+      alert("Erro ao atualizar produto.");
+    }
   }
+
+  if (loading)
+    return (
+      <div className="p-8 text-slate-500 italic text-center">
+        Abrindo a geladeira... 🍻
+      </div>
+    );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-slate-800">Estoque</h2>
-        {isAdmin && (
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button
-                className="bg-rose-600 hover:bg-rose-700"
-                onClick={() => {
-                  setForm(emptyForm);
-                  setEditId(null);
-                }}
-              >
-                <Plus className="h-4 w-4 mr-2" /> Novo Produto
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>
-                  {editId ? "Editar Produto" : "Novo Produto"}
-                </DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2 space-y-1">
-                    <Label>Nome da Peça</Label>
-                    <Input
-                      value={form.nome}
-                      onChange={(e) =>
-                        setForm({ ...form, nome: e.target.value })
-                      }
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Categoria</Label>
-                    <Select
-                      value={form.categoria}
-                      onValueChange={(v) => setForm({ ...form, categoria: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categorias.map((c) => (
-                          <SelectItem key={c} value={c}>
-                            {c}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Tamanho</Label>
-                    <Select
-                      value={form.tamanho}
-                      onValueChange={(v) => setForm({ ...form, tamanho: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {tamanhos.map((t) => (
-                          <SelectItem key={t} value={t}>
-                            {t}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Cor</Label>
-                    <Input
-                      value={form.cor}
-                      onChange={(e) =>
-                        setForm({ ...form, cor: e.target.value })
-                      }
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Qtd. em Estoque</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={form.quantidade}
-                      onChange={(e) =>
-                        setForm({ ...form, quantidade: e.target.value })
-                      }
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Preço de Custo (R$)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={form.precoCusto}
-                      onChange={(e) =>
-                        setForm({ ...form, precoCusto: e.target.value })
-                      }
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Preço de Venda (R$)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={form.precoVenda}
-                      onChange={(e) =>
-                        setForm({ ...form, precoVenda: e.target.value })
-                      }
-                      required
-                    />
-                  </div>
-                </div>
-                <Button
-                  type="submit"
-                  className="w-full bg-rose-600 hover:bg-rose-700"
-                  disabled={loading}
-                >
-                  {loading ? "Salvando..." : "Salvar"}
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-        )}
+    <div className="space-y-6 p-2">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 className="text-3xl font-bold text-slate-800 flex items-center gap-2">
+            <Beer className="h-8 w-8 text-amber-600" /> Controle de Inventário
+          </h2>
+          <p className="text-slate-500 text-sm">
+            Pesquise produtos e ajuste preços
+          </p>
+        </div>
+        <Button
+          onClick={() => router.push("/produtos")}
+          className="bg-amber-600 hover:bg-amber-700"
+        >
+          <Plus className="h-4 w-4 mr-2" /> Nova Entrada
+        </Button>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-200">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-slate-600">
-                Produto
-              </th>
-              <th className="text-left px-4 py-3 font-medium text-slate-600">
-                Categoria
-              </th>
-              <th className="text-left px-4 py-3 font-medium text-slate-600">
-                Tam.
-              </th>
-              <th className="text-left px-4 py-3 font-medium text-slate-600">
-                Cor
-              </th>
-              {isAdmin && (
-                <th className="text-left px-4 py-3 font-medium text-slate-600">
-                  Custo
-                </th>
-              )}
-              <th className="text-left px-4 py-3 font-medium text-slate-600">
-                Venda
-              </th>
-              <th className="text-left px-4 py-3 font-medium text-slate-600">
-                Estoque
-              </th>
-              {isAdmin && (
-                <th className="text-left px-4 py-3 font-medium text-slate-600">
-                  Ações
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {produtos.map((p) => (
-              <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-4 py-3 font-medium">
-                  <div className="flex items-center gap-2">
-                    <Package className="h-4 w-4 text-slate-400" />
-                    {p.nome}
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  <Badge variant="outline">{p.categoria}</Badge>
-                </td>
-                <td className="px-4 py-3">{p.tamanho}</td>
-                <td className="px-4 py-3">{p.cor}</td>
-                {isAdmin && (
-                  <td className="px-4 py-3 text-slate-500">
-                    {formatBRL(p.precoCusto)}
-                  </td>
-                )}
-                <td className="px-4 py-3 font-medium text-emerald-700">
-                  {formatBRL(p.precoVenda)}
-                </td>
-                <td className="px-4 py-3">
-                  <Badge
-                    className={
-                      p.quantidade <= 5
-                        ? "bg-orange-100 text-orange-700"
-                        : "bg-emerald-100 text-emerald-700"
-                    }
-                  >
-                    {p.quantidade} un.
-                  </Badge>
-                </td>
-                {isAdmin && (
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openEdit(p)}
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-red-600 border-red-200"
-                        onClick={() => handleDelete(p.id)}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* BARRA DE BUSCA E FILTROS */}
+      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-xl border shadow-sm">
+        <div className="relative w-full md:w-96">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Input
+            placeholder="Procurar bebida (ex: Heineken, Jack...)"
+            className="pl-10"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+          />
+        </div>
+
+        <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
+          <Button
+            variant={filtroAtivo === "todos" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => router.push("/estoque")}
+            className={
+              filtroAtivo === "todos"
+                ? "bg-white shadow-sm text-slate-900"
+                : "text-slate-500"
+            }
+          >
+            Todos
+          </Button>
+          <Button
+            variant={filtroAtivo === "baixo" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => router.push("/estoque?filtro=baixo")}
+            className={
+              filtroAtivo === "baixo"
+                ? "bg-rose-500 text-white shadow-sm"
+                : "text-slate-500"
+            }
+          >
+            Baixo Estoque
+          </Button>
+        </div>
       </div>
+
+      {/* TABELA DE PRODUTOS */}
+      <Card className="border-slate-200 shadow-sm overflow-hidden">
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold tracking-wider">
+                <tr>
+                  <th className="px-6 py-4">Produto</th>
+                  <th className="px-6 py-4 text-center">Qtd</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4 text-right">Preço Venda</th>
+                  <th className="px-6 py-4 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {produtosFiltrados.map((p) => (
+                  <tr
+                    key={p.id}
+                    className="hover:bg-slate-50/50 transition-colors"
+                  >
+                    <td className="px-6 py-4 font-semibold text-slate-800">
+                      {p.nome}
+                      <p className="text-[10px] text-slate-400 font-normal uppercase">
+                        {p.tamanho} • {p.categoria}
+                      </p>
+                    </td>
+                    <td className="px-6 py-4 text-center font-mono font-bold text-slate-700">
+                      {p.quantidade}
+                    </td>
+                    <td className="px-6 py-4">
+                      {p.quantidade <= 5 ? (
+                        <Badge className="bg-rose-100 text-rose-700 border-none">
+                          Alerta
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-emerald-100 text-emerald-700 border-none">
+                          Ok
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right font-bold text-slate-900">
+                      R$ {Number(p.precoVenda).toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setProdutoEditando(p)}
+                        className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* MODAL DE EDIÇÃO ATUALIZADO COM CAMPO DE NOME */}
+      {produtoEditando && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">
+            <CardHeader className="border-b flex flex-row items-center justify-between">
+              <CardTitle className="text-lg">Editar Produto</CardTitle>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setProdutoEditando(null)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-4">
+              {/* CAMPO DE NOME (O QUE VOCÊ PEDIU) */}
+              <div className="space-y-2">
+                <Label>Nome do Produto</Label>
+                <Input
+                  type="text"
+                  value={produtoEditando.nome}
+                  onChange={(e) =>
+                    setProdutoEditando({
+                      ...produtoEditando,
+                      nome: e.target.value,
+                    })
+                  }
+                  placeholder="Ex: Heineken 600ml"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Preço Venda (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={produtoEditando.precoVenda}
+                    onChange={(e) =>
+                      setProdutoEditando({
+                        ...produtoEditando,
+                        precoVenda: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Quantidade</Label>
+                  <Input
+                    type="number"
+                    value={produtoEditando.quantidade}
+                    onChange={(e) =>
+                      setProdutoEditando({
+                        ...produtoEditando,
+                        quantidade: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                <Button
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                  onClick={confirmarEdicao}
+                >
+                  <Check className="h-4 w-4 mr-2" /> Salvar Alterações
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setProdutoEditando(null)}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

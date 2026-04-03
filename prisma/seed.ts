@@ -1,27 +1,33 @@
-import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
+const { PrismaClient } = require("@prisma/client");
+const bcrypt = require("bcryptjs");
 
 const prisma = new PrismaClient();
 
 async function main() {
-  const senhaHash = await bcrypt.hash("admin123", 12);
+  // Vamos criar a sua senha criptografada (o NextAuth exige isso)
+  const hashedDefaultPassword = await bcrypt.hash("admin123", 10);
 
   const admin = await prisma.user.upsert({
-    where: { email: "admin@loja.com" },
+    where: { email: "danilo@adegaeneas.com" }, // Seu e-mail de login
     update: {},
     create: {
-      name: "Administrador",
-      email: "admin@loja.com",
-      password: senhaHash,
+      name: "Danilo Coelho",
+      email: "danilo@adegaeneas.com",
+      password: hashedDefaultPassword,
       role: "ADMIN",
+      ativo: true,
     },
   });
 
-  console.log("✅ Admin criado:", admin.email);
-  console.log("🔑 Senha: admin123");
-  console.log("⚠️ TROQUE A SENHA APÓS O PRIMEIRO LOGIN!");
+  console.log("✅ Usuário Mestre Criado:", admin.email);
+  console.log("🔑 Senha Padrão: admin123");
 }
 
 main()
-  .catch(console.error)
-  .finally(() => prisma.$disconnect());
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

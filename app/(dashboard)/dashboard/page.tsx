@@ -1,103 +1,173 @@
-import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, Package, ShoppingCart, DollarSign } from "lucide-react";
-import { startOfDay, startOfMonth, endOfDay, endOfMonth } from "date-fns";
+import {
+  DollarSign,
+  ShoppingBag,
+  AlertTriangle,
+  TrendingUp,
+  Beer,
+} from "lucide-react";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  Legend,
+} from "recharts";
 
-async function getDashboardData() {
-  const hoje = new Date();
-  const inicioDia = startOfDay(hoje);
-  const fimDia = endOfDay(hoje);
-  const inicioMes = startOfMonth(hoje);
-  const fimMes = endOfMonth(hoje);
+const COLORS = ["#f59e0b", "#10b981", "#3b82f6", "#6366f1"];
 
-  const [vendasHoje, vendasMes, totalProdutos, estoqueBaixo] = await Promise.all([
-    prisma.venda.aggregate({
-      where: { createdAt: { gte: inicioDia, lte: fimDia } },
-      _sum: { total: true },
-      _count: true,
-    }),
-    prisma.venda.aggregate({
-      where: { createdAt: { gte: inicioMes, lte: fimMes } },
-      _sum: { total: true },
-      _count: true,
-    }),
-    prisma.produto.count({ where: { ativo: true } }),
-    prisma.produto.count({ where: { ativo: true, quantidade: { lte: 5 } } }),
-  ]);
+export default function DashboardPage() {
+  const [stats, setStats] = useState<any>(null);
 
-  return { vendasHoje, vendasMes, totalProdutos, estoqueBaixo };
-}
+  useEffect(() => {
+    fetch("/api/stats")
+      .then((res) => res.json())
+      .then(setStats);
+  }, []);
 
-export default async function DashboardPage() {
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") redirect("/estoque");
-
-  const { vendasHoje, vendasMes, totalProdutos, estoqueBaixo } = await getDashboardData();
-
-  const fmt = (v: any) =>
-    Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-
-  const cards = [
-    {
-      title: "Vendas Hoje",
-      value: fmt(vendasHoje._sum.total),
-      sub: `${vendasHoje._count} transação(ões)`,
-      icon: DollarSign,
-      color: "text-green-500",
-      bg: "bg-green-500/10",
-    },
-    {
-      title: "Vendas do Mês",
-      value: fmt(vendasMes._sum.total),
-      sub: `${vendasMes._count} transação(ões)`,
-      icon: TrendingUp,
-      color: "text-blue-500",
-      bg: "bg-blue-500/10",
-    },
-    {
-      title: "Produtos Ativos",
-      value: String(totalProdutos),
-      sub: "no catálogo",
-      icon: Package,
-      color: "text-amber-500",
-      bg: "bg-amber-500/10",
-    },
-    {
-      title: "Estoque Baixo",
-      value: String(estoqueBaixo),
-      sub: "≤ 5 unidades",
-      icon: ShoppingCart,
-      color: "text-red-500",
-      bg: "bg-red-500/10",
-    },
-  ];
+  if (!stats)
+    return (
+      <div className="p-8 text-slate-500 italic text-center">
+        Abrindo a Adega... 🍺
+      </div>
+    );
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Dashboard</h1>
-        <p className="text-slate-500 text-sm mt-1">Visão geral do negócio</p>
+    <div className="space-y-8 p-4">
+      <div className="flex items-center gap-3">
+        <Beer className="h-10 w-10 text-amber-600" />
+        <h2 className="text-3xl font-bold tracking-tight text-slate-800">
+          Painel do Dono
+        </h2>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {cards.map((card) => (
-          <Card key={card.title} className="border-slate-200 dark:border-slate-700">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="border-amber-100 bg-amber-50/20">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-amber-900">
+              Faturamento
+            </CardTitle>
+            <DollarSign className="h-4 w-4 text-amber-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-700">
+              R$ {(stats?.revenue || 0).toFixed(2)}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-blue-100 bg-blue-50/20">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-blue-900">
+              Ticket Médio
+            </CardTitle>
+            <TrendingUp className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-700">
+              R$ {(stats?.averageTicket || 0).toFixed(2)}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-slate-600">
+              Vendas do Mês
+            </CardTitle>
+            <ShoppingBag className="h-4 w-4 text-rose-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-slate-900">
+              {stats?.count || 0}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Link
+          href="/estoque?filtro=baixo"
+          className="block transition-transform hover:scale-105"
+        >
+          <Card className="border-rose-100 bg-rose-50/20 cursor-pointer h-full">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                {card.title}
+              <CardTitle className="text-sm font-medium text-rose-900">
+                Alerta Estoque
               </CardTitle>
-              <div className={`p-2 rounded-lg ${card.bg}`}>
-                <card.icon className={`w-4 h-4 ${card.color}`} />
-              </div>
+              <AlertTriangle className="h-4 w-4 text-rose-500" />
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold text-slate-900 dark:text-white">{card.value}</p>
-              <p className="text-xs text-slate-500 mt-1">{card.sub}</p>
+              <div className="text-2xl font-bold text-rose-600">
+                {stats?.lowStock || 0} itens
+              </div>
             </CardContent>
           </Card>
-        ))}
+        </Link>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">
+              Pagamentos (%)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={stats?.chartData || []}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {(stats?.chartData || []).map((_: any, i: number) => (
+                    <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold text-slate-700">
+              Vendas Recentes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {(stats?.recent || []).map((v: any) => (
+                <div
+                  key={v.id}
+                  className="flex items-center justify-between border-b pb-2 last:border-0"
+                >
+                  <div>
+                    <p className="font-medium text-slate-800">
+                      {v.produto?.nome || "Item"}
+                    </p>
+                    <p className="text-[10px] text-slate-400 uppercase">
+                      {v.metodoPagamento} • {v.produto?.tamanho}
+                    </p>
+                  </div>
+                  <div className="text-sm font-bold text-emerald-600">
+                    + R$ {Number(v.valorTotal || 0).toFixed(2)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
