@@ -13,6 +13,7 @@ datasource db {
 enum Role {
   ADMIN
   VENDEDOR
+  DESENVOLVEDOR
 }
 
 // Ajustado para volumes e unidades de Adega
@@ -50,6 +51,7 @@ enum MetodoPagamento {
   CARTAO_CREDITO
   CARTAO_DEBITO
   DINHEIRO
+  FIADO
 }
 
 // --- MODELS ---
@@ -89,22 +91,26 @@ model Produto {
 }
 
 model Venda {
-  id              String          @id @default(cuid())
-  
-  vendedorId      String
-  vendedor        User            @relation(fields: [vendedorId], references: [id])
-  
-  produtoId       String
-  produto         Produto         @relation(fields: [produtoId], references: [id])
-  
-  quantidade      Int
-  valorTotal      Decimal         @db.Decimal(10, 2)
-  metodoPagamento MetodoPagamento @default(PIX)
-  
-  createdAt       DateTime        @default(now())
-  itens           ItemVenda[]
+  id              String          @id @default(cuid())
+  
+  vendedorId      String
+  vendedor        User            @relation(fields: [vendedorId], references: [id])
+  
+  produtoId       String
+  produto         Produto         @relation(fields: [produtoId], references: [id])
+  
+  quantidade      Int
+  valorTotal      Decimal         @db.Decimal(10, 2)
+  metodoPagamento MetodoPagamento @default(PIX)
 
-  @@map("vendas")
+  // --- CONEXÃO COM O DEVEDOR (FIADO) ---
+  devedorId       String?
+  devedor         Devedor?        @relation(fields: [devedorId], references: [id])
+  
+  createdAt       DateTime        @default(now())
+  itens           ItemVenda[]
+
+  @@map("vendas")
 }
 
 model ItemVenda {
@@ -118,4 +124,18 @@ model ItemVenda {
   subtotal   Decimal @db.Decimal(10, 2)
 
   @@map("itens_venda")
+}
+
+model Devedor {
+  id          String   @id @default(cuid())
+  nome        String
+  telefone    String?  // Opcional, bom pra cobrar no Zap
+  saldoDevedor Decimal @db.Decimal(10, 2) @default(0)
+  ativo       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  vendas      Venda[]
+
+  @@map("devedores")
 }

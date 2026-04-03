@@ -35,8 +35,6 @@ export async function GET() {
   return NextResponse.json(produtos);
 }
 
-// Adicione esta função PATCH no final do seu app/api/produtos/route.ts
-
 export async function PATCH(request: Request) {
   try {
     const body = await request.json();
@@ -60,6 +58,42 @@ export async function PATCH(request: Request) {
     console.error("Erro ao atualizar produto:", error);
     return NextResponse.json(
       { error: "Erro ao atualizar dados no banco" },
+      { status: 500 },
+    );
+  }
+}
+
+// NOVA FUNÇÃO: Excluir Produto
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ error: "ID não fornecido" }, { status: 400 });
+    }
+
+    await prisma.produto.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ message: "Produto excluído com sucesso" });
+  } catch (error: any) {
+    console.error("Erro ao excluir:", error);
+
+    // Se der erro de chave estrangeira (já tem venda com esse produto)
+    if (error.code === "P2003") {
+      return NextResponse.json(
+        {
+          error:
+            "Não é possível excluir um produto que já possui histórico de vendas. Altere o estoque para zero em vez de excluir.",
+        },
+        { status: 400 },
+      );
+    }
+
+    return NextResponse.json(
+      { error: "Erro ao excluir produto" },
       { status: 500 },
     );
   }

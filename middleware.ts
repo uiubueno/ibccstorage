@@ -6,23 +6,31 @@ export default auth((req) => {
   const isLoggedIn = !!session;
 
   const isLoginPage = nextUrl.pathname === "/login";
+
+  // Rotas que exigem poder total
   const isAdminRoute =
     nextUrl.pathname.startsWith("/usuarios") ||
     nextUrl.pathname.startsWith("/relatorios") ||
     nextUrl.pathname.startsWith("/dashboard");
 
-  // Não logado → redireciona para login
+  // 1. Não logado → redireciona para login
   if (!isLoggedIn && !isLoginPage) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  // Já logado tentando acessar login → redireciona para dashboard
+  // 2. Já logado tentando acessar login → redireciona para dashboard
   if (isLoggedIn && isLoginPage) {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
-  // Vendedor tentando acessar rota de admin → 403
-  if (isAdminRoute && session?.user?.role !== "ADMIN") {
+  // 3. TRAVA DE ACESSO ATUALIZADA:
+  // Agora permitimos ADMIN e DESENVOLVEDOR nas rotas restritas.
+  // Se for VENDEDOR (ou qualquer outro) tentando entrar, manda pro estoque.
+  if (
+    isAdminRoute &&
+    session?.user?.role !== "ADMIN" &&
+    session?.user?.role !== "DESENVOLVEDOR"
+  ) {
     return NextResponse.redirect(new URL("/estoque", req.url));
   }
 
@@ -30,5 +38,8 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  // Ajustei o matcher para ignorar arquivos de imagem e outros arquivos estáticos
+  matcher: [
+    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };
