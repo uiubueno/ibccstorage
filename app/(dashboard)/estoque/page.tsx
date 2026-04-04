@@ -153,7 +153,7 @@ export default function EstoquePage() {
         <div className="relative w-full md:max-w-md">
           <Search className="absolute left-4 md:left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
           <Input
-            placeholder="Procurar bebida..."
+            placeholder="Procurar produto..."
             className="pl-12 md:pl-14 h-12 md:h-14 bg-white/40 border-white/60 rounded-xl md:rounded-2xl font-bold text-base md:text-lg focus:bg-white/70"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}

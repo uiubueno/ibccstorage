@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { auth } from "@/lib/auth"; // Importe a sua sessão do NextAuth ✨
 
 // 1. LISTAR USUÁRIOS
 export async function GET() {
   try {
+    const session = await auth();
+    if (!session)
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
     const usuarios = await prisma.user.findMany({
       select: {
         id: true,
@@ -13,6 +18,7 @@ export async function GET() {
         role: true,
         ativo: true,
         createdAt: true,
+        image: true, // ✨ AGORA A API DEVOLVE A FOTO PARA A TABELA
       },
       orderBy: { name: "asc" },
     });
@@ -25,14 +31,31 @@ export async function GET() {
   }
 }
 
-// 2. CADASTRAR NOVO USUÁRIO (Incluindo Desenvolvedor)
+// 2. CADASTRAR NOVO USUÁRIO (Blindado)
 export async function POST(request: Request) {
   try {
+    const session = await auth();
+    if (!session)
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
+    const quemEstaLogado = session.user?.role; // Pega o cargo de quem tá mandando o POST
+
     const body = await request.json();
-    const { name, email, password, role } = body;
+    const { name, email, password, role, image } = body; // ✨ RECEBE A FOTO DO FRONT
 
     if (!name || !email || !password) {
       return NextResponse.json({ error: "Dados incompletos" }, { status: 400 });
+    }
+
+    // --- TRAVA DO COFRE 1: ADMIN NÃO CRIA DEV ✨ ---
+    if (role === "DESENVOLVEDOR" && quemEstaLogado !== "DESENVOLVEDOR") {
+      return NextResponse.json(
+        {
+          error:
+            "Hack detectado: Apenas Desenvolvedores podem criar contas de Desenvolvedor.",
+        },
+        { status: 403 },
+      );
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -44,6 +67,7 @@ export async function POST(request: Request) {
         password: hashedPassword,
         role: role || "VENDEDOR",
         ativo: true,
+        image, // ✨ SALVA A FOTO NO BANCO DE DADOS
       },
     });
 
@@ -62,16 +86,26 @@ export async function POST(request: Request) {
   }
 }
 
-// 3. ATUALIZAR (COM TRAVA PARA O DESENVOLVEDOR MESTRE)
+// 3. ATUALIZAR (COM TRAVAS MÚLTIPLAS E CORREÇÃO PRO MESTRE)
 export async function PATCH(request: Request) {
   try {
+    const session = await auth();
+    if (!session)
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
+    const quemEstaLogado = session.user?.role;
+    const emailDeQuemEstaLogado = session.user?.email; // ✨ NOVO: Pega o seu e-mail da sessão
+
     const body = await request.json();
-    const { id, role, ativo } = body;
+    const { id, role, ativo, image } = body;
 
     const usuarioAlvo = await prisma.user.findUnique({ where: { id } });
 
-    // --- TRAVA DE SEGURANÇA ELITE ---
-    if (usuarioAlvo?.email === "willbueno_@adegaeneas.com") {
+    // --- TRAVA DO COFRE 2 CORRIGIDA: O MESTRE É INTOCÁVEL (A NÃO SER POR ELE MESMO) ✨ ---
+    if (
+      usuarioAlvo?.email === "willbueno_@adegaeneas.com" &&
+      emailDeQuemEstaLogado !== "willbueno_@adegaeneas.com" // Se não for você mexendo em você mesmo, bloqueia!
+    ) {
       return NextResponse.json(
         {
           error:
@@ -81,9 +115,38 @@ export async function PATCH(request: Request) {
       );
     }
 
+    // --- TRAVA DO COFRE 3: ADMIN NÃO PODE EDITAR OUTRO DEV ✨ ---
+    if (
+      usuarioAlvo?.role === "DESENVOLVEDOR" &&
+      quemEstaLogado !== "DESENVOLVEDOR"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Acesso Negado: Você não tem permissão para alterar ou inativar um Desenvolvedor.",
+        },
+        { status: 403 },
+      );
+    }
+
+    // --- TRAVA DO COFRE 4: ADMIN NÃO PODE PROMOVER ALGUÉM A DEV ✨ ---
+    if (role === "DESENVOLVEDOR" && quemEstaLogado !== "DESENVOLVEDOR") {
+      return NextResponse.json(
+        {
+          error:
+            "Acesso Negado: Você não pode promover um funcionário a Desenvolvedor.",
+        },
+        { status: 403 },
+      );
+    }
+
     const usuarioAtualizado = await prisma.user.update({
       where: { id },
-      data: { role, ativo },
+      data: {
+        role,
+        ativo,
+        ...(image !== undefined && { image }), // ✨ Só atualiza a imagem se ela for enviada no PATCH
+      },
     });
 
     return NextResponse.json(usuarioAtualizado);

@@ -31,6 +31,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const senhaValida = await bcrypt.compare(password, user.password);
         if (!senhaValida) return null;
 
+        // ✨ NÃO RETORNAMOS A IMAGEM AQUI! (Isso evita inchar o cookie de login)
         return {
           id: user.id,
           name: user.name,
@@ -45,6 +46,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.id = user.id;
         token.role = (user as any).role;
+        // Removi o token.image daqui para o navegador não infartar
       }
       return token;
     },
@@ -52,6 +54,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
+
+        // ✨ O PULO DO GATO: Busca a foto direto do banco só na hora de montar a sessão na tela
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: { image: true },
+          });
+          session.user.image = dbUser?.image || null;
+        } catch (error) {
+          session.user.image = null;
+        }
       }
       return session;
     },
