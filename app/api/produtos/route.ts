@@ -4,27 +4,35 @@ import { prisma } from "@/lib/prisma";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { nome, categoria, tamanho, precoCusto, precoVenda, quantidade } =
-      body;
+    const {
+      nome,
+      categoria,
+      tamanho,
+      precoCusto,
+      precoVenda,
+      quantidade,
+      estoqueMinimo,
+      controlaEstoque,
+    } = body;
 
     const produto = await prisma.produto.create({
       data: {
         nome,
-        categoria,
-        tamanho,
+        categoria: categoria || "OUTRO",
+        tamanho: tamanho || "UNIDADE",
         precoCusto: Number(precoCusto),
         precoVenda: Number(precoVenda),
         quantidade: Number(quantidade),
+        estoqueMinimo: Number(estoqueMinimo || 5),
+        controlaEstoque:
+          controlaEstoque === undefined ? true : Boolean(controlaEstoque),
       },
     });
 
     return NextResponse.json(produto, { status: 201 });
   } catch (error) {
-    console.error("Erro na API:", error);
-    return NextResponse.json(
-      { error: "Erro ao cadastrar bebida" },
-      { status: 500 },
-    );
+    console.error("Erro no POST:", error);
+    return NextResponse.json({ error: "Erro ao cadastrar" }, { status: 500 });
   }
 }
 
@@ -38,8 +46,17 @@ export async function GET() {
 export async function PATCH(request: Request) {
   try {
     const body = await request.json();
-    const { id, nome, precoVenda, quantidade, precoCusto, categoria, tamanho } =
-      body;
+    const {
+      id,
+      nome,
+      precoVenda,
+      quantidade,
+      precoCusto,
+      categoria,
+      tamanho,
+      estoqueMinimo,
+      controlaEstoque,
+    } = body;
 
     const produtoAtualizado = await prisma.produto.update({
       where: { id },
@@ -50,6 +67,8 @@ export async function PATCH(request: Request) {
         precoCusto: Number(precoCusto),
         categoria,
         tamanho,
+        estoqueMinimo: Number(estoqueMinimo),
+        controlaEstoque: Boolean(controlaEstoque), // Força a gravação como Booleano ✨
       },
     });
 
@@ -57,44 +76,21 @@ export async function PATCH(request: Request) {
   } catch (error) {
     console.error("Erro ao atualizar produto:", error);
     return NextResponse.json(
-      { error: "Erro ao atualizar dados no banco" },
+      { error: "Erro ao atualizar no banco" },
       { status: 500 },
     );
   }
 }
 
-// NOVA FUNÇÃO: Excluir Produto
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
-
-    if (!id) {
+    if (!id)
       return NextResponse.json({ error: "ID não fornecido" }, { status: 400 });
-    }
-
-    await prisma.produto.delete({
-      where: { id },
-    });
-
-    return NextResponse.json({ message: "Produto excluído com sucesso" });
+    await prisma.produto.delete({ where: { id } });
+    return NextResponse.json({ message: "Produto excluído" });
   } catch (error: any) {
-    console.error("Erro ao excluir:", error);
-
-    // Se der erro de chave estrangeira (já tem venda com esse produto)
-    if (error.code === "P2003") {
-      return NextResponse.json(
-        {
-          error:
-            "Não é possível excluir um produto que já possui histórico de vendas. Altere o estoque para zero em vez de excluir.",
-        },
-        { status: 400 },
-      );
-    }
-
-    return NextResponse.json(
-      { error: "Erro ao excluir produto" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Erro ao excluir" }, { status: 500 });
   }
 }

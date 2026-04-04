@@ -72,45 +72,46 @@ model User {
 }
 
 model Produto {
-  id          String    @id @default(cuid())
-  nome        String
-  categoria   Categoria
-  tamanho     Tamanho
-  // Removi o campo 'cor' pois não se aplica a bebidas
-  precoCusto  Decimal   @db.Decimal(10, 2)
-  precoVenda  Decimal   @db.Decimal(10, 2)
-  quantidade  Int       @default(0)
-  ativo       Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id              String      @id @default(cuid())
+  nome            String
+  categoria       Categoria
+  tamanho         Tamanho
+  precoCusto      Decimal     @db.Decimal(10, 2)
+  precoVenda      Decimal     @db.Decimal(10, 2)
+  quantidade      Int         @default(0)
+  estoqueMinimo   Int         @default(5)
+  controlaEstoque Boolean     @default(true) // <--- NOVO CAMPO: Define se abate estoque na venda
+  ativo           Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
-  vendas      Venda[]
-  itensVenda  ItemVenda[]
+  vendas          Venda[]
+  itensVenda      ItemVenda[]
 
   @@map("produtos")
 }
 
 model Venda {
-  id              String          @id @default(cuid())
-  
-  vendedorId      String
-  vendedor        User            @relation(fields: [vendedorId], references: [id])
-  
-  produtoId       String
-  produto         Produto         @relation(fields: [produtoId], references: [id])
-  
-  quantidade      Int
-  valorTotal      Decimal         @db.Decimal(10, 2)
-  metodoPagamento MetodoPagamento @default(PIX)
+  id              String          @id @default(cuid())
+  
+  vendedorId      String
+  vendedor        User            @relation(fields: [vendedorId], references: [id])
+  
+  produtoId       String
+  produto         Produto         @relation(fields: [produtoId], references: [id])
+  
+  quantidade      Int
+  valorTotal      Decimal         @db.Decimal(10, 2)
+  metodoPagamento MetodoPagamento @default(PIX)
 
   // --- CONEXÃO COM O DEVEDOR (FIADO) ---
-  devedorId       String?
-  devedor         Devedor?        @relation(fields: [devedorId], references: [id])
-  
-  createdAt       DateTime        @default(now())
-  itens           ItemVenda[]
+  devedorId       String?
+  devedor         Devedor?        @relation(fields: [devedorId], references: [id])
+  
+  createdAt       DateTime        @default(now())
+  itens           ItemVenda[]
 
-  @@map("vendas")
+  @@map("vendas")
 }
 
 model ItemVenda {
@@ -127,15 +128,15 @@ model ItemVenda {
 }
 
 model Devedor {
-  id          String   @id @default(cuid())
-  nome        String
-  telefone    String?  // Opcional, bom pra cobrar no Zap
-  saldoDevedor Decimal @db.Decimal(10, 2) @default(0)
-  ativo       Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  nome         String
+  telefone     String?  
+  saldoDevedor Decimal  @db.Decimal(10, 2) @default(0)
+  ativo        Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  vendas      Venda[]
+  vendas       Venda[]
 
   @@map("devedores")
 }

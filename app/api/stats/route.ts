@@ -8,7 +8,6 @@ export async function GET(request: Request) {
     const inicio = searchParams.get("inicio");
     const fim = searchParams.get("fim");
 
-    // 1. Ajuste das Datas (Mantendo seu padrão date-fns)
     let dInicio = startOfDay(new Date());
     let dFim = endOfDay(new Date());
 
@@ -17,33 +16,36 @@ export async function GET(request: Request) {
       dFim = endOfDay(new Date(fim + "T23:59:59"));
     }
 
-    // 2. BUSCA TURBINADA: Agora incluímos os itens da venda e o devedor (fiado)
     const vendas = await prisma.venda.findMany({
       where: {
         createdAt: { gte: dInicio, lte: dFim },
       },
       include: {
-        devedor: { select: { nome: true } }, // Para mostrar quem deve no Dashboard
+        devedor: { select: { nome: true } },
         itens: {
           include: {
-            produto: { select: { nome: true } }, // Pega o nome de cada produto dentro da venda
+            produto: { select: { nome: true } },
           },
         },
       },
       orderBy: { createdAt: "desc" },
     });
 
-    // 3. Cálculos de Faturamento e Ticket Médio
     const revenue = vendas.reduce((acc, v) => acc + Number(v.valorTotal), 0);
     const count = vendas.length;
     const averageTicket = count > 0 ? revenue / count : 0;
 
-    // 4. Contador de Baixo Estoque (Continua igual, está ok)
-    const lowStock = await prisma.produto.count({
-      where: { quantidade: { lte: 5 }, ativo: true },
+    // --- LÓGICA DE BAIXO ESTOQUE REFINADA ✨ ---
+    const todosProdutos = await prisma.produto.findMany({
+      where: { ativo: true },
+      select: { quantidade: true, estoqueMinimo: true, controlaEstoque: true },
     });
 
-    // 5. Gráfico de Pagamentos (Ajustado para o novo método FIADO)
+    // Só conta como baixo estoque se controlar estoque E estiver abaixo do mínimo
+    const lowStock = todosProdutos.filter(
+      (p) => p.controlaEstoque === true && p.quantidade <= p.estoqueMinimo,
+    ).length;
+
     const pagamentosMap = vendas.reduce((acc: any, v) => {
       const metodo = v.metodoPagamento.replace("_", " ");
       acc[metodo] = (acc[metodo] || 0) + Number(v.valorTotal);
@@ -58,14 +60,13 @@ export async function GET(request: Request) {
           }))
         : [{ name: "Sem vendas", value: 0 }];
 
-    // 6. Retorno dos Dados
     return NextResponse.json({
       revenue,
       count,
       averageTicket,
       lowStock,
       chartData,
-      recent: vendas.slice(0, 10), // Aumentei para 10 para o Danilo ver mais movimento
+      recent: vendas.slice(0, 10),
     });
   } catch (error) {
     console.error("Erro na API de Stats:", error);

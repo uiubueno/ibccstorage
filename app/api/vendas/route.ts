@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
-// --- BUSCAR VENDAS (Para o Dashboard e Relatórios) ---
 export async function GET() {
   try {
     const vendas = await prisma.venda.findMany({
@@ -14,15 +13,11 @@ export async function GET() {
           },
         },
       },
-      orderBy: {
-        createdAt: "desc", // As mais recentes primeiro
-      },
-      take: 20, // Puxa as últimas 20 para não pesar o Dashboard
+      orderBy: { createdAt: "desc" },
+      take: 20,
     });
-
     return NextResponse.json(vendas);
   } catch (error) {
-    console.error("Erro ao buscar vendas:", error);
     return NextResponse.json(
       { error: "Erro ao carregar vendas" },
       { status: 500 },
@@ -30,15 +25,10 @@ export async function GET() {
   }
 }
 
-// --- GRAVAR NOVA VENDA (O que a gente já tinha feito) ---
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { itens, metodoPagamento, valorTotal, vendedorId, devedorId } = body;
-
-    if (!itens || itens.length === 0) {
-      return NextResponse.json({ error: "Carrinho vazio" }, { status: 400 });
-    }
 
     const resultado = await prisma.$transaction(async (tx) => {
       // 1. Criar a Venda
@@ -48,8 +38,8 @@ export async function POST(request: Request) {
           metodoPagamento,
           valorTotal,
           devedorId: metodoPagamento === "FIADO" ? devedorId : null,
-          produtoId: itens[0].produtoId, // Compatibilidade com schema antigo
-          quantidade: itens[0].quantidade, // Compatibilidade com schema antigo
+          produtoId: itens[0].produtoId, // Mantendo compatibilidade
+          quantidade: itens[0].quantidade, // Mantendo compatibilidade
           itens: {
             create: itens.map((item: any) => ({
               produtoId: item.produtoId,
@@ -61,17 +51,22 @@ export async function POST(request: Request) {
         },
       });
 
-      // 2. Baixa no estoque
+      // 2. Baixa no estoque (SÓ SE O PRODUTO CONTROLAR ESTOQUE) ✨
       for (const item of itens) {
-        const produto = await tx.produto.update({
+        const produtoInfo = await tx.produto.findUnique({
           where: { id: item.produtoId },
-          data: {
-            quantidade: { decrement: item.quantidade },
-          },
+          select: { controlaEstoque: true, nome: true },
         });
 
-        if (produto.quantidade < 0) {
-          throw new Error(`Estoque insuficiente: ${produto.nome}`);
+        if (produtoInfo?.controlaEstoque === true) {
+          const produtoAtualizado = await tx.produto.update({
+            where: { id: item.produtoId },
+            data: { quantidade: { decrement: item.quantidade } },
+          });
+
+          if (produtoAtualizado.quantidade < 0) {
+            throw new Error(`Estoque insuficiente: ${produtoInfo.nome}`);
+          }
         }
       }
 
@@ -79,9 +74,7 @@ export async function POST(request: Request) {
       if (metodoPagamento === "FIADO" && devedorId) {
         await tx.devedor.update({
           where: { id: devedorId },
-          data: {
-            saldoDevedor: { increment: valorTotal },
-          },
+          data: { saldoDevedor: { increment: valorTotal } },
         });
       }
 

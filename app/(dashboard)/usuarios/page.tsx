@@ -84,7 +84,7 @@ export default function UsuariosPage() {
             <div className="bg-amber-500 p-2 rounded-2xl shadow-lg text-white">
               <Users className="h-8 w-8" />
             </div>
-            Gestão de <span className="text-amber-500">Equipe</span>
+            Gestão dos <span className="text-amber-500">Mais Mais</span>
           </h2>
         </div>
         <Button

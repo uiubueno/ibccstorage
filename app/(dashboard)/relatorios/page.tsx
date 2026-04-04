@@ -15,6 +15,7 @@ import {
   Eye,
   X,
   ShoppingBag,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,8 +23,6 @@ export default function RelatoriosPage() {
   const [data, setData] = useState<any>(null);
   const [inicio, setInicio] = useState("");
   const [fim, setFim] = useState("");
-
-  // Estado para controlar o Modal de Detalhes da Venda
   const [vendaDetalhe, setVendaDetalhe] = useState<any>(null);
 
   const buscarRelatorio = useCallback(async () => {
@@ -45,8 +44,6 @@ export default function RelatoriosPage() {
 
     const dadosFormatados = data.vendas.map((v: any) => {
       const dataObjeto = new Date(v.createdAt);
-
-      // Lógica para listar todos os itens na planilha do Excel
       let produtosLista = v.produto?.nome || "Venda Vazia";
       if (v.itens && v.itens.length > 0) {
         produtosLista = v.itens
@@ -79,98 +76,97 @@ export default function RelatoriosPage() {
 
     const worksheet = XLSX.utils.json_to_sheet(dadosFormatados);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Vendas");
-
-    const nomeArquivo = `Relatorio_Adega_Eneas_${inicio || "Geral"}_ate_${fim || "Hoje"}.xlsx`;
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Vendas_Adega");
+    const nomeArquivo = `Faturamento_Eneas_${new Date().toLocaleDateString().replaceAll("/", "-")}.xlsx`;
     XLSX.writeFile(workbook, nomeArquivo);
   };
 
   if (!data)
     return (
-      <div className="p-8 text-center italic text-slate-500 font-bold uppercase tracking-widest animate-pulse">
-        Gerando relatórios da Adega... 🍺
+      <div className="p-10 text-center font-black animate-pulse text-slate-500 uppercase tracking-widest">
+        Consolidando finanças... 🍺
       </div>
     );
 
   return (
     <div className="space-y-8 relative max-w-7xl mx-auto font-sans antialiased">
-      {/* HEADER E FILTROS (LIQUID GLASS) */}
+      {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 no-print">
         <h2 className="text-4xl font-black text-slate-900 tracking-tighter uppercase flex items-center gap-3">
-          <div className="bg-amber-500 p-2 rounded-2xl shadow-lg shadow-amber-500/20 text-white">
+          <div className="bg-amber-500 p-2 rounded-2xl shadow-lg text-white">
             <FileText className="h-8 w-8" />
           </div>
-          Relatórios
+          Relatórios <span className="text-amber-500">Financeiros</span>
         </h2>
+      </div>
 
-        <div className="flex flex-wrap items-end gap-3 bg-white/60 backdrop-blur-xl p-5 rounded-[2rem] border border-white/40 shadow-xl">
+      {/* BARRA DE FILTROS REFINADA ✨ */}
+      <div className="flex flex-col xl:flex-row items-center justify-between gap-6 bg-white/60 backdrop-blur-xl p-6 rounded-[2.5rem] border border-white/40 shadow-xl no-print">
+        {/* Datas à Esquerda */}
+        <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
           <div className="grid gap-1.5">
-            <Label
-              htmlFor="inicio"
-              className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1"
-            >
-              Início
+            <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">
+              Data Início
             </Label>
             <Input
               type="date"
-              id="inicio"
               value={inicio}
               onChange={(e) => setInicio(e.target.value)}
-              className="h-11 bg-white/50 border-white/60 rounded-xl focus:bg-white/80 shadow-sm text-slate-700 font-bold"
+              className="h-12 bg-white/40 border-white/60 rounded-2xl font-bold"
             />
           </div>
           <div className="grid gap-1.5">
-            <Label
-              htmlFor="fim"
-              className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1"
-            >
-              Fim
+            <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">
+              Data Fim
             </Label>
             <Input
               type="date"
-              id="fim"
               value={fim}
               onChange={(e) => setFim(e.target.value)}
-              className="h-11 bg-white/50 border-white/60 rounded-xl focus:bg-white/80 shadow-sm text-slate-700 font-bold"
+              className="h-12 bg-white/40 border-white/60 rounded-2xl font-bold"
             />
           </div>
           <Button
             onClick={buscarRelatorio}
-            className="gap-2 h-11 bg-slate-900 hover:bg-black rounded-xl text-white font-bold shadow-lg"
+            className="h-12 bg-slate-900 hover:bg-black text-white rounded-2xl px-6 self-end font-bold"
           >
-            <Search className="h-4 w-4" /> Filtrar
+            <Search className="h-4 w-4 mr-2" /> Filtrar
           </Button>
-          <Button
-            onClick={exportarExcel}
-            variant="outline"
-            className="gap-2 h-11 border-emerald-400/50 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 rounded-xl backdrop-blur-md shadow-sm"
-          >
-            <Download className="h-4 w-4" /> Excel
-          </Button>
+        </div>
+
+        {/* Botões de Ação à Direita */}
+        <div className="flex items-center gap-3 w-full md:w-auto justify-end border-t xl:border-t-0 pt-4 xl:pt-0 border-white/40">
           <Button
             onClick={() => window.print()}
             variant="outline"
-            className="h-11 rounded-xl bg-white/50 border-white/60 hover:bg-white/80 shadow-sm"
-            title="Imprimir"
+            className="h-12 rounded-2xl px-6 bg-white/60 border-white/40 font-bold uppercase text-[10px]"
           >
-            <Printer className="h-4 w-4 text-slate-600" />
+            <Printer className="h-4 w-4 mr-2" /> PDF
+          </Button>
+
+          {/* BOTÃO EXCEL COM SHIMMER ✨ */}
+          <Button
+            onClick={exportarExcel}
+            className="h-12 bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-widest shadow-xl shadow-emerald-500/20 rounded-2xl px-6 transition-all active:scale-95 relative overflow-hidden group"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:animate-[shimmer_2s_infinite] pointer-events-none" />
+            <Download className="h-4 w-4 mr-2" /> Exportar Excel
           </Button>
         </div>
       </div>
 
-      {/* CARDS FINANCEIROS (LIQUID GLASS) */}
+      {/* CARDS FINANCEIROS */}
       <div className="grid gap-6 md:grid-cols-3">
-        {/* Faturamento (Dark Amber Glass) */}
-        <Card className="bg-slate-950/90 backdrop-blur-2xl border border-slate-800 rounded-[2rem] shadow-2xl relative overflow-hidden group">
-          <div className="absolute -right-10 -top-10 w-32 h-32 bg-amber-500/10 blur-[50px] rounded-full transition-all group-hover:bg-amber-500/20" />
-          <CardHeader className="pb-2 relative z-10">
-            <CardTitle className="text-[10px] uppercase text-slate-400 font-black tracking-[0.3em]">
+        <Card className="bg-slate-950/90 backdrop-blur-2xl border border-slate-800 rounded-[2.5rem] shadow-2xl relative overflow-hidden group">
+          <div className="absolute -right-10 -top-10 w-32 h-32 bg-amber-500/10 blur-[50px] rounded-full group-hover:bg-amber-500/20 transition-all" />
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[10px] uppercase text-slate-400 font-black tracking-widest">
               Faturamento Bruto
             </CardTitle>
           </CardHeader>
-          <CardContent className="relative z-10">
+          <CardContent>
             <div className="text-4xl font-black text-amber-500 tracking-tighter">
-              <span className="text-xl mr-1 opacity-40 font-medium italic text-white">
+              <span className="text-xl mr-1 font-medium italic text-white/40">
                 R$
               </span>
               {data.stats.faturamentoTotal.toFixed(2)}
@@ -178,30 +174,28 @@ export default function RelatoriosPage() {
           </CardContent>
         </Card>
 
-        {/* Lucro (Emerald Glass) */}
-        <Card className="bg-emerald-500/10 backdrop-blur-xl border border-emerald-400/30 rounded-[2rem] shadow-xl relative overflow-hidden">
+        <Card className="bg-emerald-500/10 backdrop-blur-xl border border-emerald-400/30 rounded-[2.5rem] shadow-xl relative overflow-hidden group">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] uppercase text-emerald-800 font-black tracking-[0.3em]">
+            <CardTitle className="text-[10px] uppercase text-emerald-800 font-black tracking-widest">
               Lucro Líquido
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-4xl font-black text-emerald-600 tracking-tighter">
-              <span className="text-xl mr-1 opacity-60 font-medium italic">
+              <span className="text-xl mr-1 font-medium italic text-emerald-600/40">
                 R$
               </span>
               {data.stats.lucroTotal.toFixed(2)}
             </div>
-            <div className="flex items-center gap-1 mt-2 text-emerald-600 font-black text-[9px] uppercase tracking-widest bg-emerald-500/10 w-fit px-2 py-1 rounded-full border border-emerald-400/20">
+            <div className="flex items-center gap-1 mt-2 text-emerald-600 font-black text-[8px] uppercase tracking-widest bg-emerald-500/10 w-fit px-2 py-1 rounded-full border border-emerald-400/20">
               <TrendingUp className="h-3 w-3" /> Tendência positiva
             </div>
           </CardContent>
         </Card>
 
-        {/* Pedidos (Blue Glass) */}
-        <Card className="bg-sky-500/10 backdrop-blur-xl border border-sky-400/30 rounded-[2rem] shadow-xl relative overflow-hidden">
+        <Card className="bg-sky-500/10 backdrop-blur-xl border border-sky-400/30 rounded-[2.5rem] shadow-xl relative overflow-hidden group">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] uppercase text-sky-800 font-black tracking-[0.3em]">
+            <CardTitle className="text-[10px] uppercase text-sky-800 font-black tracking-widest">
               Total de Pedidos
             </CardTitle>
           </CardHeader>
@@ -213,65 +207,61 @@ export default function RelatoriosPage() {
         </Card>
       </div>
 
-      {/* TABELA DE DADOS (LIQUID GLASS) */}
-      <Card className="bg-white/60 backdrop-blur-xl border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] rounded-[2.5rem] overflow-hidden">
+      {/* TABELA PREMIUM */}
+      <Card className="bg-white/60 backdrop-blur-xl border-white/40 shadow-2xl rounded-[3rem] overflow-hidden">
         <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-white/40 border-b border-white/50 text-slate-500 uppercase text-[10px] font-black tracking-[0.2em]">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-white/40 border-b border-white/50 text-slate-500 uppercase text-[10px] font-black tracking-widest">
               <tr>
-                <th className="px-6 py-5 text-left">Data / Hora</th>
-                <th className="px-6 py-5 text-left">Produtos</th>
-                <th className="px-6 py-5 text-center">Método</th>
-                <th className="px-6 py-5 text-right">Valor Final</th>
+                <th className="px-8 py-6">Data / Hora</th>
+                <th className="px-8 py-6">Produtos</th>
+                <th className="px-8 py-6 text-center">Método</th>
+                <th className="px-8 py-6 text-right">Valor Final</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/40">
               {data.vendas.map((v: any) => {
                 const dataObj = new Date(v.createdAt);
-                const temVariosItens = v.itens && v.itens.length > 0;
-
                 return (
                   <tr
                     key={v.id}
-                    className="hover:bg-white/50 transition-colors"
+                    className="hover:bg-white/50 transition-colors group"
                   >
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-8 py-5">
                       <div className="flex flex-col">
                         <span className="font-bold text-slate-800">
                           {dataObj.toLocaleDateString("pt-BR")}
                         </span>
-                        <span className="text-[10px] text-amber-600 font-black tracking-widest mt-0.5">
+                        <span className="text-[9px] text-amber-600 font-black uppercase">
                           {dataObj.toLocaleTimeString("pt-BR", {
                             hour: "2-digit",
                             minute: "2-digit",
-                          })}
+                          })}{" "}
                           H
                         </span>
                       </div>
                     </td>
-
-                    <td className="px-6 py-4">
-                      {temVariosItens ? (
+                    <td className="px-8 py-5">
+                      {v.itens?.length > 0 ? (
                         <button
                           onClick={() => setVendaDetalhe(v)}
-                          className="flex items-center gap-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 px-3 py-1.5 rounded-xl text-xs font-black transition-all border border-blue-400/30 backdrop-blur-sm active:scale-95 shadow-sm"
+                          className="flex items-center gap-2 bg-blue-500/10 hover:bg-blue-500 text-blue-700 hover:text-white px-3 py-1.5 rounded-xl text-[10px] font-black transition-all border border-blue-400/30"
                         >
-                          <Eye className="w-4 h-4" /> Ver Itens (
+                          <Eye className="w-3.5 h-3.5" /> Ver Itens (
                           {v.itens.length})
                         </button>
                       ) : (
-                        <span className="font-black text-slate-800 uppercase text-xs">
-                          {v.produto?.nome || "Produto Removido"}
+                        <span className="font-black text-slate-800 uppercase text-[11px]">
+                          {v.produto?.nome || "Serviço"}
                         </span>
                       )}
                     </td>
-
-                    <td className="px-6 py-4 text-center">
-                      <span className="bg-slate-100/50 backdrop-blur-sm text-slate-600 px-3 py-1.5 rounded-xl text-[9px] font-black border border-white/60 uppercase tracking-widest shadow-sm">
+                    <td className="px-8 py-5 text-center">
+                      <span className="bg-slate-100/80 text-slate-600 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-white">
                         {v.metodoPagamento.replace("_", " ")}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right font-black text-slate-900 text-lg">
+                    <td className="px-8 py-5 text-right font-black text-slate-900 text-lg tracking-tighter">
                       R$ {Number(v.valorTotal).toFixed(2)}
                     </td>
                   </tr>
@@ -287,77 +277,69 @@ export default function RelatoriosPage() {
         </CardContent>
       </Card>
 
-      {/* MODAL DE DETALHES DA VENDA (LIQUID GLASS) */}
+      {/* MODAL DE DETALHES (LIQUID GLASS) */}
       {vendaDetalhe && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-300"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in"
           onClick={() => setVendaDetalhe(null)}
         >
           <div
-            className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] w-full max-w-lg overflow-hidden border border-white/60 flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-300"
+            className="bg-white/90 backdrop-blur-2xl rounded-[3.5rem] shadow-2xl w-full max-w-lg overflow-hidden border border-white/60 animate-in zoom-in-95"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header do Modal */}
-            <div className="p-6 border-b border-white/40 flex justify-between items-center bg-white/40">
+            <div className="p-8 border-b border-white/40 flex justify-between items-center bg-white/40">
               <div className="flex items-center gap-4">
-                <div className="bg-amber-500/20 p-3 rounded-2xl border border-amber-500/20 shadow-inner">
+                <div className="bg-amber-500/20 p-3 rounded-2xl shadow-inner">
                   <ShoppingBag className="w-6 h-6 text-amber-600" />
                 </div>
                 <div>
-                  <h3 className="font-black text-slate-900 uppercase tracking-tighter text-lg leading-none">
+                  <h3 className="font-black text-slate-900 uppercase text-lg">
                     Detalhes do Pedido
                   </h3>
-                  <p className="text-[10px] font-black text-slate-500 mt-1.5 uppercase tracking-[0.2em]">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
                     {new Date(vendaDetalhe.createdAt).toLocaleString("pt-BR")}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setVendaDetalhe(null)}
-                className="p-2 bg-white/50 hover:bg-rose-500/10 rounded-full text-slate-500 hover:text-rose-500 transition-all border border-transparent hover:border-rose-500/20"
+                className="p-2 hover:bg-rose-500/10 rounded-full text-slate-400 hover:text-rose-500 transition-all"
               >
-                <X className="w-5 h-5" />
+                <X className="w-6 h-6" />
               </button>
             </div>
-
-            {/* Lista de Itens do Modal */}
-            <div className="p-6 overflow-y-auto bg-slate-50/30">
-              <div className="space-y-3">
-                {vendaDetalhe.itens?.map((item: any) => (
-                  <div
-                    key={item.id}
-                    className="flex justify-between items-center p-4 bg-white/60 backdrop-blur-sm border border-white/80 rounded-2xl shadow-sm hover:bg-white/80 transition-colors"
-                  >
-                    <div>
-                      <p className="font-black text-slate-800 text-sm uppercase">
-                        {item.produto?.nome}
-                      </p>
-                      <p className="text-[10px] text-slate-500 font-bold mt-1 tracking-widest">
-                        {item.quantidade}x R${" "}
-                        {Number(item.precoUnit).toFixed(2)}
-                      </p>
-                    </div>
-                    <div className="font-black text-slate-900 text-lg">
-                      R$ {Number(item.subtotal).toFixed(2)}
-                    </div>
+            <div className="p-8 space-y-4 max-h-[50vh] overflow-y-auto bg-slate-50/30">
+              {vendaDetalhe.itens?.map((item: any) => (
+                <div
+                  key={item.id}
+                  className="flex justify-between items-center p-4 bg-white/70 border border-white rounded-2xl shadow-sm"
+                >
+                  <div>
+                    <p className="font-black text-slate-800 text-xs uppercase">
+                      {item.produto?.nome}
+                    </p>
+                    <p className="text-[10px] text-slate-500 font-bold mt-1 uppercase">
+                      {item.quantidade}x R$ {Number(item.precoUnit).toFixed(2)}
+                    </p>
                   </div>
-                ))}
-              </div>
+                  <div className="font-black text-slate-900 text-lg tracking-tighter">
+                    R$ {Number(item.subtotal).toFixed(2)}
+                  </div>
+                </div>
+              ))}
             </div>
-
-            {/* Footer do Modal (Dark Glass) */}
-            <div className="p-8 bg-slate-950/90 backdrop-blur-xl text-white mt-auto flex justify-between items-center border-t border-slate-800 relative overflow-hidden">
+            <div className="p-10 bg-slate-950/90 text-white flex justify-between items-center relative overflow-hidden">
               <div className="absolute -right-10 -top-10 w-32 h-32 bg-amber-500/10 blur-[50px] rounded-full" />
               <div className="relative z-10">
-                <p className="text-[10px] uppercase font-black text-slate-400 tracking-[0.3em]">
+                <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest">
                   Total da Venda
                 </p>
-                <p className="text-[10px] text-slate-300 mt-1.5 font-bold uppercase tracking-widest bg-white/10 px-2 py-1 rounded-lg w-fit">
+                <p className="text-[10px] text-amber-500 mt-1 font-black uppercase bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
                   {vendaDetalhe.metodoPagamento.replace("_", " ")}
                 </p>
               </div>
               <div className="text-4xl font-black text-amber-500 tracking-tighter relative z-10">
-                <span className="text-lg mr-1 font-medium text-white opacity-40 italic">
+                <span className="text-lg mr-1 text-white/40 italic font-medium">
                   R$
                 </span>
                 {Number(vendaDetalhe.valorTotal).toFixed(2)}
@@ -367,7 +349,13 @@ export default function RelatoriosPage() {
         </div>
       )}
 
+      {/* CSS GLOBAL COM ANIMAÇÕES */}
       <style jsx global>{`
+        @keyframes shimmer {
+          100% {
+            transform: translateX(100%);
+          }
+        }
         @media print {
           .no-print,
           button,
@@ -386,6 +374,10 @@ export default function RelatoriosPage() {
           }
           .border {
             border-color: #eee !important;
+          }
+          .rounded-[3rem],
+          .rounded-[2.5rem] {
+            border-radius: 0 !important;
           }
         }
       `}</style>

@@ -1,415 +1,335 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  ShoppingCart,
-  Search,
-  CheckCircle2,
-  Banknote,
-  CreditCard,
-  X,
-  Loader2,
-  Plus,
-  Trash2,
-  BookOpen,
-  User,
-} from "lucide-react";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Search,
+  ShoppingCart,
+  Trash2,
+  CheckCircle2,
+  Loader2,
+  Infinity,
+  UserCircle,
+  Plus,
+  Minus,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function VendasPage() {
   const { data: session } = useSession();
   const [produtos, setProdutos] = useState<any[]>([]);
-  const [devedores, setDevedores] = useState<any[]>([]); // Nova lista de clientes
-  const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [showResults, setShowResults] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const [produtoSelecionado, setProdutoSelecionado] = useState<any>(null);
-  const [quantidade, setQuantidade] = useState(1);
-  const [metodoPagamento, setMetodoPagamento] = useState("PIX");
+  const [devedores, setDevedores] = useState<any[]>([]);
+  const [busca, setBusca] = useState("");
   const [carrinho, setCarrinho] = useState<any[]>([]);
-
-  // Estado para o Modal de Fiado
-  const [modalFiado, setModalFiado] = useState(false);
+  const [metodo, setMetodo] = useState("PIX");
+  const [devedorId, setDevedorId] = useState("");
+  const [finalizando, setFinalizando] = useState(false);
 
   useEffect(() => {
-    // Busca produtos com estoque
     fetch("/api/produtos")
       .then((res) => res.json())
-      .then((data) => setProdutos(data.filter((p: any) => p.quantidade > 0)));
-
-    // Busca os clientes do caderno para o modal
+      .then(setProdutos);
     fetch("/api/devedores")
       .then((res) => res.json())
       .then(setDevedores);
   }, []);
 
-  const produtosFiltrados = produtos
-    .filter((p) => p.nome.toLowerCase().includes(searchTerm.toLowerCase()))
-    .slice(0, 8);
+  const produtosDisponiveis = produtos.filter((p) => {
+    const bateBusca = p.nome.toLowerCase().includes(busca.toLowerCase());
+    const temEstoqueOuEhDose = p.controlaEstoque === false || p.quantidade > 0;
+    return bateBusca && temEstoqueOuEhDose;
+  });
 
-  const totalGeral = useMemo(
-    () => carrinho.reduce((acc, item) => acc + item.subtotal, 0),
-    [carrinho],
-  );
-
-  const adicionarItem = () => {
-    if (!produtoSelecionado) return;
-    const novoItem = {
-      produtoId: produtoSelecionado.id,
-      nome: produtoSelecionado.nome,
-      quantidade,
-      precoUnitario: Number(produtoSelecionado.precoVenda),
-      subtotal: Number(produtoSelecionado.precoVenda) * quantidade,
-      tempId: Date.now(),
-    };
-    setCarrinho([...carrinho, novoItem]);
-    setProdutoSelecionado(null);
-    setSearchTerm("");
-    setQuantidade(1);
+  const adicionarAoCarrinho = (p: any) => {
+    const existe = carrinho.find((item) => item.produtoId === p.id);
+    if (existe) {
+      atualizarQuantidade(p.id, existe.quantidade + 1);
+    } else {
+      setCarrinho([
+        ...carrinho,
+        {
+          produtoId: p.id,
+          nome: p.nome,
+          quantidade: 1,
+          precoUnitario: Number(p.precoVenda),
+        },
+      ]);
+    }
   };
 
-  // 1. Intercepta o clique em Finalizar
-  function prepararVenda() {
-    if (carrinho.length === 0) return;
+  // FUNÇÃO NOVA: Atualiza a quantidade direto no carrinho ✨
+  const atualizarQuantidade = (id: string, novaQtd: number) => {
+    if (novaQtd < 1) return;
+    setCarrinho(
+      carrinho.map((item) =>
+        item.produtoId === id ? { ...item, quantidade: novaQtd } : item,
+      ),
+    );
+  };
 
-    if (metodoPagamento === "FIADO") {
-      setModalFiado(true); // Abre o modal se for fiado
+  const total = carrinho.reduce(
+    (acc, item) => acc + item.precoUnitario * item.quantidade,
+    0,
+  );
+
+  async function finalizarVenda() {
+    if (carrinho.length === 0) return;
+    if (!session?.user?.id) {
+      alert("Sessão expirada. Faça login novamente.");
       return;
     }
 
-    executarVenda(null); // Segue reto se não for fiado
-  }
+    if (metodo === "FIADO" && !devedorId) {
+      alert("Para venda FIADO, selecione o cliente!");
+      return;
+    }
 
-  // 2. Executa a gravação no banco
-  async function executarVenda(devedorIdLocal: string | null) {
-    setLoading(true);
+    setFinalizando(true);
+
     try {
       const res = await fetch("/api/vendas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           itens: carrinho,
-          metodoPagamento,
-          valorTotal: totalGeral,
-          vendedorId: session?.user?.id,
-          devedorId: devedorIdLocal, // Passa o ID do cliente se tiver
+          metodoPagamento: metodo,
+          valorTotal: total,
+          vendedorId: session.user.id,
+          devedorId: metodo === "FIADO" ? devedorId : null,
         }),
       });
+
       if (res.ok) {
-        alert("Venda Finalizada! 🥂");
+        alert("Venda realizada! 🍻");
         setCarrinho([]);
-        setModalFiado(false);
-        window.location.reload();
+        setDevedorId("");
+        fetch("/api/produtos")
+          .then((res) => res.json())
+          .then(setProdutos);
       } else {
-        const errorData = await res.json();
-        alert(errorData.error || "Erro ao processar venda.");
+        const err = await res.json();
+        alert(err.error || "Erro na venda");
       }
-    } catch {
-      alert("Erro ao processar venda.");
+    } catch (error) {
+      alert("Erro de conexão.");
     } finally {
-      setLoading(false);
+      setFinalizando(false);
     }
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 p-4 antialiased relative">
-      <h2 className="text-4xl font-black text-slate-900 tracking-tighter uppercase flex items-center gap-3">
-        <div className="bg-amber-500 p-2 rounded-2xl shadow-lg text-white">
-          <ShoppingCart className="h-8 w-8" />
-        </div>
-        Frente de <span className="text-amber-500">Caixa</span>
-      </h2>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* BUSCA E SELEÇÃO */}
-        <div className="lg:col-span-5 space-y-6">
-          <Card className="bg-white/60 backdrop-blur-xl border-white/40 shadow-xl rounded-[2.5rem]">
-            <CardHeader>
-              <CardTitle className="text-xl font-black uppercase">
-                Selecionar Item
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="relative" ref={dropdownRef}>
-                <Label className="text-[10px] font-bold uppercase ml-1">
-                  Produto
-                </Label>
-                <Input
-                  placeholder="Busque o item..."
-                  className="h-14 bg-white/50 border-white/60 rounded-2xl pl-10 font-bold"
-                  value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    setShowResults(true);
-                  }}
-                />
-                <Search className="absolute left-3 bottom-4 h-5 w-5 text-slate-400" />
-                {showResults && searchTerm && (
-                  <div className="absolute z-50 w-full bg-white/90 backdrop-blur-2xl border border-white/60 rounded-2xl shadow-2xl mt-2 max-h-60 overflow-y-auto">
-                    {produtosFiltrados.map((p) => (
-                      <div
-                        key={p.id}
-                        className="p-4 hover:bg-amber-50 cursor-pointer flex justify-between items-center border-b last:border-0"
-                        onClick={() => {
-                          setProdutoSelecionado(p);
-                          setSearchTerm(p.nome);
-                          setShowResults(false);
-                        }}
-                      >
-                        <div>
-                          <span className="font-bold text-slate-800 block">
-                            {p.nome}
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
-                            Estoque: {p.quantidade} un
-                          </span>
-                        </div>
-                        <span className="text-amber-600 font-black text-lg">
-                          R$ {Number(p.precoVenda).toFixed(2)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-bold uppercase ml-1">
-                    Qtd
-                  </Label>
-                  <Input
-                    type="number"
-                    value={quantidade}
-                    onChange={(e) => setQuantidade(Number(e.target.value))}
-                    className="h-14 text-center font-black text-xl bg-white/50 rounded-2xl border-white/60"
-                  />
-                </div>
-                <div className="flex items-end">
-                  <button
-                    onClick={adicionarItem}
-                    disabled={!produtoSelecionado}
-                    className="w-full h-14 bg-slate-900 hover:bg-black text-white rounded-2xl flex items-center justify-center gap-2 font-bold uppercase shadow-lg disabled:opacity-50 transition-all active:scale-95"
-                  >
-                    <Plus className="h-5 w-5" /> Incluir
-                  </button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* PAGAMENTO (COM FIADO) */}
-          <Card className="bg-white/60 backdrop-blur-xl border-white/40 shadow-xl rounded-[2.5rem]">
-            <CardContent className="pt-6">
-              <Label className="text-[10px] font-bold uppercase block mb-4">
-                Pagamento
-              </Label>
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                {[
-                  { id: "PIX", label: "Pix", icon: CheckCircle2 },
-                  { id: "DINHEIRO", label: "Dinheiro", icon: Banknote },
-                  { id: "CARTAO_CREDITO", label: "Crédito", icon: CreditCard },
-                  { id: "CARTAO_DEBITO", label: "Débito", icon: CreditCard },
-                  { id: "FIADO", label: "Fiado", icon: BookOpen }, // <-- Adicionado aqui
-                ].map((metodo) => {
-                  const isActive = metodoPagamento === metodo.id;
-                  return (
-                    <button
-                      key={metodo.id}
-                      onClick={() => setMetodoPagamento(metodo.id)}
-                      className={cn(
-                        "h-14 rounded-2xl border transition-all flex flex-col items-center justify-center gap-1 text-[10px] font-black uppercase",
-                        isActive
-                          ? "bg-amber-500 text-white border-amber-400 shadow-lg shadow-amber-500/20"
-                          : "bg-white/40 border-white/60 text-slate-500 hover:bg-white/80",
-                      )}
-                    >
-                      <metodo.icon className="w-4 h-4" /> {metodo.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* LISTA DE ITENS (CARRINHO) */}
-        <div className="lg:col-span-4">
-          <Card className="bg-white/40 backdrop-blur-xl border-white/40 shadow-xl rounded-[2.5rem] min-h-[480px] flex flex-col">
-            <CardHeader className="border-b border-white/20">
-              <CardTitle className="text-xs font-black uppercase text-slate-400 tracking-widest">
-                Lista de Compras
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex-1 p-0 overflow-y-auto max-h-[420px]">
-              {carrinho.length > 0 ? (
-                carrinho.map((item) => (
-                  <div
-                    key={item.tempId}
-                    className="p-4 flex justify-between items-center border-b border-white/10 hover:bg-white/20 transition-colors"
-                  >
-                    <div className="flex flex-col">
-                      <span className="font-black text-slate-800 text-sm uppercase">
-                        {item.nome}
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-bold tracking-widest">
-                        {item.quantidade}x R$ {item.precoUnitario.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-black text-slate-900 text-lg">
-                        R$ {item.subtotal.toFixed(2)}
-                      </span>
-                      <button
-                        onClick={() =>
-                          setCarrinho(
-                            carrinho.filter((i) => i.tempId !== item.tempId),
-                          )
-                        }
-                        className="text-rose-400 hover:text-rose-600 bg-rose-50 p-1.5 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full p-20 text-slate-400">
-                  <ShoppingCart className="h-10 w-10 opacity-20 mb-3" />{" "}
-                  <span className="text-xs font-bold uppercase tracking-widest opacity-50">
-                    Carrinho Vazio
-                  </span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* TOTAL E FINALIZAR */}
-        <div className="lg:col-span-3 space-y-4">
-          <div className="bg-slate-950/90 backdrop-blur-2xl border border-slate-800 p-8 rounded-[3rem] shadow-2xl text-center relative overflow-hidden">
-            <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-2">
-              Total Geral
-            </p>
-            <div className="text-5xl font-black text-amber-500 tracking-tighter">
-              <span className="text-xl mr-1 font-medium text-white opacity-40">
-                R$
-              </span>
-              {totalGeral.toFixed(2)}
-            </div>
+    <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 font-sans antialiased">
+      {/* LISTA DE PRODUTOS */}
+      <div className="lg:col-span-2 space-y-6">
+        <div className="bg-white/60 backdrop-blur-xl p-4 rounded-[2rem] border border-white/40 shadow-xl">
+          <div className="relative">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+            <Input
+              placeholder="Buscar bebida, dose ou cigarro..."
+              className="pl-14 h-14 bg-white/40 border-white/60 rounded-2xl font-bold text-lg focus:bg-white/80 transition-all"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+            />
           </div>
+        </div>
 
-          <button
-            onClick={prepararVenda}
-            disabled={loading || carrinho.length === 0}
-            className={cn(
-              "w-full h-32 rounded-[3rem] flex flex-col items-center justify-center gap-1 text-white font-black text-3xl uppercase tracking-tighter shadow-2xl relative overflow-hidden active:scale-95 transition-all group",
-              loading || carrinho.length === 0
-                ? "bg-slate-200/50 text-slate-400 backdrop-blur-sm"
-                : "bg-amber-500/90 backdrop-blur-xl border border-amber-400/50 hover:bg-amber-500",
-            )}
-          >
-            {loading ? (
-              <Loader2 className="h-10 w-10 animate-spin" />
-            ) : (
-              "Finalizar"
-            )}
-            {!loading && carrinho.length > 0 && (
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:animate-[shimmer_2s_infinite] pointer-events-none" />
-            )}
-          </button>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {produtosDisponiveis.map((p) => (
+            <Card
+              key={p.id}
+              onClick={() => adicionarAoCarrinho(p)}
+              className="cursor-pointer hover:scale-[1.02] active:scale-95 transition-all bg-white/60 backdrop-blur-md border-white/40 rounded-[2.2rem] shadow-lg group overflow-hidden border-b-4 border-b-transparent hover:border-b-amber-500"
+            >
+              <CardContent className="p-6 text-center md:text-left">
+                <p className="font-black text-slate-800 uppercase text-xs leading-tight group-hover:text-amber-600 transition-colors h-8 overflow-hidden">
+                  {p.nome}
+                </p>
+                <div className="flex flex-col md:flex-row justify-between items-center md:items-end mt-6 gap-2">
+                  <span className="text-emerald-600 font-black text-xl tracking-tighter">
+                    R$ {Number(p.precoVenda).toFixed(2)}
+                  </span>
+                  <div>
+                    {p.controlaEstoque ? (
+                      <span className="text-[10px] font-black text-slate-400 uppercase bg-slate-100 px-2 py-0.5 rounded-lg whitespace-nowrap">
+                        {p.quantidade} un
+                      </span>
+                    ) : (
+                      <span className="text-amber-600 flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-100 whitespace-nowrap">
+                        <Infinity className="h-3 w-3" />{" "}
+                        <span className="text-[9px] font-black uppercase">
+                          Dose
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </div>
 
-      {/* MODAL LIQUID GLASS PARA SELECIONAR CLIENTE DO FIADO */}
-      {modalFiado && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-300"
-          onClick={() => setModalFiado(false)}
-        >
-          <div
-            className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] w-full max-w-md overflow-hidden border border-white/60 flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-300"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6 border-b border-white/40 flex justify-between items-center bg-white/40">
-              <div className="flex items-center gap-4">
-                <div className="bg-sky-500/20 p-3 rounded-2xl border border-sky-500/20 shadow-inner">
-                  <BookOpen className="w-6 h-6 text-sky-600" />
-                </div>
-                <div>
-                  <h3 className="font-black text-slate-900 uppercase tracking-tighter text-lg leading-none">
-                    Venda no Fiado
-                  </h3>
-                  <p className="text-[10px] font-black text-slate-500 mt-1.5 uppercase tracking-[0.2em]">
-                    Quem vai pagar a conta?
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setModalFiado(false)}
-                className="p-2 bg-white/50 hover:bg-rose-500/10 rounded-full text-slate-500 hover:text-rose-500 transition-all border border-transparent hover:border-rose-500/20"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto bg-slate-50/30 flex-1">
-              {devedores.length > 0 ? (
-                <div className="space-y-3">
-                  {devedores.map((dev) => (
-                    <button
-                      key={dev.id}
-                      onClick={() => executarVenda(dev.id)} // Clicou no nome, finaliza a venda!
-                      className="w-full flex items-center gap-4 p-4 bg-white/60 backdrop-blur-sm border border-white/80 rounded-2xl shadow-sm hover:bg-sky-50 hover:border-sky-200 transition-all active:scale-95 group text-left"
-                    >
-                      <div className="bg-slate-100 p-2.5 rounded-xl group-hover:bg-sky-100 group-hover:text-sky-600 text-slate-400 transition-colors">
-                        <User className="w-5 h-5" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-black text-slate-800 uppercase text-sm group-hover:text-sky-700 transition-colors">
-                          {dev.nome}
-                        </p>
-                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
-                          Saldo atual: R$ {Number(dev.saldoDevedor).toFixed(2)}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-10">
-                  <p className="text-slate-500 font-bold text-sm uppercase tracking-widest">
-                    Nenhum cliente cadastrado.
-                  </p>
-                  <p className="text-slate-400 text-[10px] uppercase tracking-widest mt-2">
-                    Vá na aba "Devedores" para criar o caderninho.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="p-6 bg-slate-950/90 backdrop-blur-xl text-white mt-auto border-t border-slate-800">
-              <p className="text-[10px] uppercase font-black text-slate-400 tracking-[0.3em] text-center mb-1">
-                Valor a pendurar
-              </p>
-              <div className="text-3xl font-black text-amber-500 tracking-tighter text-center">
-                R$ {totalGeral.toFixed(2)}
-              </div>
-            </div>
+      {/* CARRINHO (DARK GLASS) */}
+      <div className="lg:col-span-1">
+        <Card className="bg-slate-900/95 backdrop-blur-3xl border-slate-800 rounded-[3rem] shadow-2xl sticky top-6 overflow-hidden flex flex-col h-[calc(100vh-120px)]">
+          <div className="p-6 border-b border-slate-800 flex items-center justify-between text-white shrink-0">
+            <h3 className="font-black uppercase tracking-tighter flex items-center gap-2">
+              <ShoppingCart className="text-amber-500" /> Carrinho
+            </h3>
+            <span className="bg-amber-500 text-slate-900 text-[10px] font-black px-3 py-1 rounded-full">
+              {carrinho.length} ITENS
+            </span>
           </div>
-        </div>
-      )}
+
+          {/* LISTA DO CARRINHO COM CONTROLE DE QTD ✨ */}
+          <div className="p-4 space-y-4 overflow-y-auto flex-1 custom-scrollbar bg-slate-900/50">
+            {carrinho.map((item, idx) => (
+              <div
+                key={idx}
+                className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-3"
+              >
+                <div className="flex justify-between items-start">
+                  <p className="font-black text-white text-xs uppercase leading-tight pr-4">
+                    {item.nome}
+                  </p>
+                  <button
+                    onClick={() =>
+                      setCarrinho(carrinho.filter((_, i) => i !== idx))
+                    }
+                    className="text-rose-400 hover:text-rose-300 transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  {/* CONTROLE DE QUANTIDADE ✨ */}
+                  <div className="flex items-center bg-black/40 rounded-xl p-1 border border-white/10">
+                    <button
+                      onClick={() =>
+                        atualizarQuantidade(item.produtoId, item.quantidade - 1)
+                      }
+                      className="p-1.5 hover:bg-white/10 rounded-lg text-white transition-all"
+                    >
+                      <Minus size={14} />
+                    </button>
+                    <input
+                      type="number"
+                      value={item.quantidade}
+                      onChange={(e) =>
+                        atualizarQuantidade(
+                          item.produtoId,
+                          parseInt(e.target.value) || 1,
+                        )
+                      }
+                      className="w-10 bg-transparent text-center text-white font-black text-xs outline-none"
+                    />
+                    <button
+                      onClick={() =>
+                        atualizarQuantidade(item.produtoId, item.quantidade + 1)
+                      }
+                      className="p-1.5 hover:bg-white/10 rounded-lg text-white transition-all"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+
+                  <div className="text-right">
+                    <p className="text-[10px] text-slate-500 font-bold">
+                      Subtotal
+                    </p>
+                    <p className="text-emerald-400 font-black text-sm">
+                      R$ {(item.precoUnitario * item.quantidade).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* TOTAL E PAGAMENTO */}
+          <div className="p-6 bg-slate-950/80 border-t border-slate-800 space-y-4 shrink-0">
+            <div className="flex justify-between items-end text-white">
+              <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">
+                Total
+              </span>
+              <span className="text-4xl font-black text-amber-500 tracking-tighter">
+                R$ {total.toFixed(2)}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {["PIX", "DINHEIRO", "CARTÃO", "FIADO"].map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMetodo(m)}
+                  className={cn(
+                    "py-2.5 rounded-xl text-[10px] font-black uppercase transition-all border",
+                    metodo === m
+                      ? "bg-amber-500 border-amber-400 text-slate-950 shadow-lg"
+                      : "bg-white/5 border-white/10 text-slate-500 hover:bg-white/10",
+                  )}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+
+            {metodo === "FIADO" && (
+              <div className="animate-in fade-in slide-in-from-top-2">
+                <select
+                  value={devedorId}
+                  onChange={(e) => setDevedorId(e.target.value)}
+                  className="w-full h-11 bg-white/5 border border-white/10 rounded-xl px-4 text-white text-xs font-bold outline-none"
+                >
+                  <option value="" className="bg-slate-900">
+                    Selecione o Cliente...
+                  </option>
+                  {devedores.map((d) => (
+                    <option key={d.id} value={d.id} className="bg-slate-900">
+                      {d.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <Button
+              disabled={carrinho.length === 0 || finalizando}
+              onClick={finalizarVenda}
+              className="w-full h-16 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase tracking-widest rounded-2xl shadow-xl relative overflow-hidden group active:scale-95 transition-all"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:animate-[shimmer_2s_infinite] pointer-events-none" />
+              {finalizando ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <>
+                  <CheckCircle2 className="mr-2 h-5 w-5" /> Finalizar
+                </>
+              )}
+            </Button>
+          </div>
+        </Card>
+      </div>
 
       <style jsx global>{`
         @keyframes shimmer {
           100% {
             transform: translateX(100%);
           }
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 10px;
         }
       `}</style>
     </div>

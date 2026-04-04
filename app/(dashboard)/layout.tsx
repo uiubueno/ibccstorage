@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   description:
     "Sistema profissional de gestão e PDV desenvolvido por Will Bueno.",
   icons: {
-    icon: "/adegalogo.png", // Puxa o seu logo para ser o ícone da aba
+    icon: "/logo.svg", // Puxa o seu logo para ser o ícone da aba
   },
 };
 
