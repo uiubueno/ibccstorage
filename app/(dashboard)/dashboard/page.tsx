@@ -14,7 +14,6 @@ import {
   Filter,
   RefreshCcw,
   LayoutDashboard,
-  ArrowRight,
 } from "lucide-react";
 import {
   PieChart,
@@ -32,7 +31,10 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  const hoje = new Date().toISOString().split("T")[0];
+  // ✨ CORREÇÃO DO FUSO HORÁRIO AQUI:
+  // Em vez de toISOString(), usamos o formato local YYYY-MM-DD
+  const hoje = new Date().toLocaleDateString("en-CA"); // "en-CA" gera YYYY-MM-DD no fuso do navegador
+
   const [dataInicio, setDataInicio] = useState(hoje);
   const [dataFim, setDataFim] = useState(hoje);
 
@@ -120,7 +122,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* CARDS DE MÉTRICAS (2 COLUNAS NO MOBILE) ✨ */}
+      {/* CARDS DE MÉTRICAS ✨ */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
         {/* Faturamento */}
         <Card className="bg-emerald-500/10 backdrop-blur-xl border border-emerald-400/30 rounded-[1.8rem] md:rounded-[2.2rem] shadow-lg relative overflow-hidden group">
@@ -213,9 +215,8 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* GRÁFICOS E RECENTES (STACK NO MOBILE) ✨ */}
+      {/* GRÁFICOS E RECENTES ✨ */}
       <div className="grid gap-6 lg:grid-cols-5">
-        {/* Gráfico Meios de Pagamento */}
         <Card className="lg:col-span-2 bg-white/60 backdrop-blur-xl border-white/40 shadow-xl rounded-[2.5rem] overflow-hidden">
           <CardHeader className="p-5 border-b border-white/40 bg-white/20">
             <CardTitle className="text-xs md:text-sm font-black uppercase tracking-[0.2em] text-slate-500 text-center md:text-left">
@@ -265,7 +266,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Últimas Movimentações */}
         <Card className="lg:col-span-3 bg-white/60 backdrop-blur-xl border-white/40 shadow-xl rounded-[2.5rem] overflow-hidden flex flex-col">
           <CardHeader className="p-5 border-b border-white/40 bg-white/20 flex flex-row items-center justify-between">
             <CardTitle className="text-xs md:text-sm font-black uppercase tracking-[0.2em] text-slate-500">
