@@ -1,5 +1,9 @@
-import { auth } from "@/lib/auth";
+import NextAuth from "next-auth";
+import { authConfig } from "@/lib/auth.config"; // ✨ IMPORTA O LEVE (Crie este arquivo primeiro!)
 import { NextResponse } from "next/server";
+
+// Inicializa o auth apenas com as regras, sem o peso do Prisma/Bcrypt
+const { auth } = NextAuth(authConfig);
 
 export default auth((req) => {
   const { nextUrl, auth: session } = req;
@@ -25,7 +29,6 @@ export default auth((req) => {
 
   // 3. TRAVA DE ACESSO ATUALIZADA:
   // Agora permitimos ADMIN e DESENVOLVEDOR nas rotas restritas.
-  // Se for VENDEDOR (ou qualquer outro) tentando entrar, manda pro estoque.
   if (
     isAdminRoute &&
     session?.user?.role !== "ADMIN" &&
@@ -38,7 +41,7 @@ export default auth((req) => {
 });
 
 export const config = {
-  // Ajustei o matcher para ignorar arquivos de imagem e outros arquivos estáticos
+  // O Matcher garante que o middleware não tente rodar em imagens e arquivos estáticos
   matcher: [
     "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],

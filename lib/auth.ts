@@ -1,9 +1,11 @@
+// lib/auth.ts
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { authConfig } from "./auth.config"; // ✨ Importa a versão leve
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -11,9 +13,9 @@ const loginSchema = z.object({
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig, // ✨ Puxa as configurações do arquivo leve
   adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
-  pages: { signIn: "/login" },
   providers: [
     Credentials({
       async authorize(credentials) {
@@ -21,17 +23,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!parsed.success) return null;
 
         const { email, password } = parsed.data;
-
         const user = await prisma.user.findUnique({
           where: { email, ativo: true },
         });
 
-        if (!user) return null;
+        if (!user || !user.password) return null;
 
         const senhaValida = await bcrypt.compare(password, user.password);
         if (!senhaValida) return null;
 
-        // ✨ NÃO RETORNAMOS A IMAGEM AQUI! (Isso evita inchar o cookie de login)
         return {
           id: user.id,
           name: user.name,
@@ -42,27 +42,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        token.role = (user as any).role;
-        // Removi o token.image daqui para o navegador não infartar
-      }
-      return token;
-    },
+    ...authConfig.callbacks, // ✨ Mantém os callbacks do leve
     async session({ session, token }) {
+      // ✨ Sobrescrevemos a sessão para incluir a foto (pescado no banco)
       if (token) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
-
-        // ✨ O PULO DO GATO: Busca a foto direto do banco só na hora de montar a sessão na tela
         try {
           const dbUser = await prisma.user.findUnique({
             where: { id: token.id as string },
             select: { image: true },
           });
           session.user.image = dbUser?.image || null;
-        } catch (error) {
+        } catch {
           session.user.image = null;
         }
       }
