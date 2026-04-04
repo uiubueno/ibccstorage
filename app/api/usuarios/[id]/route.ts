@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// FUNÇÃO PARA DELETAR USUÁRIO COM TRAVA MESTRE
+// FUNÇÃO PARA DELETAR USUÁRIO COM TRAVA MESTRE (Versão Next.js 15+)
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> }, // ✨ Mudança 1: Tipagem como Promise
 ) {
   try {
-    const { id } = params;
+    // ✨ Mudança 2: Esperar o ID chegar (await)
+    const { id } = await params;
 
     // 1. BUSCA O USUÁRIO QUE TENTARAM DELETAR
     const usuarioAlvo = await prisma.user.findUnique({
@@ -16,7 +17,6 @@ export async function DELETE(
 
     // 2. TRAVA DE SEGURANÇA: Ninguém deleta o Administrador Mestre
     if (usuarioAlvo?.email === "willbueno_@adegaeneas.com") {
-      // <--- COLOQUE SEU E-MAIL AQUI
       return NextResponse.json(
         {
           error:
